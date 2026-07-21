@@ -50,6 +50,7 @@ local auctionator_savedvars_defaults =
 	["_2000"]				= 100;
 	["_500"]				= 5;
 	["STARTING_DISCOUNT"]	= 5;	-- PERCENT
+	["PawnShowDiff"]		= false;	-- Pawn column: show difference vs equipped
 	};
 
 
@@ -443,6 +444,12 @@ local function Atr_SlashCmdFunction(msg)
 		collectgarbage  ("collect");
 		
 		zc.msg_atr ("memory usage: "..Atr_GetAuctionatorMemString());
+
+	elseif (cmd == "pawnscale") then
+		Atr_Pawn_HandleScaleCommand (param1u);
+
+	elseif (cmd == "pawndiff") then
+		Atr_Pawn_HandleDiffCommand (param1u);
 
 	elseif (Atr_HandleDevCommands and Atr_HandleDevCommands (cmd, param1, param2)) then
 		-- do nothing
@@ -2921,6 +2928,34 @@ end
 
 -----------------------------------------
 
+function Atr_Onclick_Col5 ()
+
+	if (gCurrentPane.activeSearch) then
+		gCurrentPane.activeSearch:ClickPawnCol();
+		gCurrentPane.UINeedsUpdate = true;
+	end
+
+end
+
+-----------------------------------------
+-- Called by the Pawn integration when pending scores resolve: re-sort (if
+-- sorting by Pawn) and repaint.
+
+function Atr_Pawn_NotifyScoresReady ()
+
+	if (gCurrentPane == nil) then
+		return;
+	end
+
+	if (gCurrentPane.activeSearch) then
+		gCurrentPane.activeSearch:ReSortScans();
+	end
+
+	gCurrentPane.UINeedsUpdate = true;
+end
+
+-----------------------------------------
+
 function Atr_ShowSearchSummary()
 
 	Atr_Col1_Heading:Hide();
@@ -2928,6 +2963,14 @@ function Atr_ShowSearchSummary()
 	Atr_Col1_Heading_Button:Show();
 	Atr_Col3_Heading_Button:Show();
 	Atr_Col4_Heading:Show();
+
+	if (Atr_Col5_Heading_Button) then
+		if (Atr_Pawn_IsAvailable and Atr_Pawn_IsAvailable()) then
+			Atr_Col5_Heading_Button:Show();
+		else
+			Atr_Col5_Heading_Button:Hide();
+		end
+	end
 
 	gCurrentPane.activeSearch:UpdateArrows ();
 
@@ -2973,10 +3016,12 @@ function Atr_ShowSearchSummary()
 			local lineEntry_itemtext	= _G["AuctionatorEntry"..line.."_PerItem_Text"];
 			local lineEntry_text		= _G["AuctionatorEntry"..line.."_EntryText"];
 			local lineEntry_stack		= _G["AuctionatorEntry"..line.."_StackPrice"];
+			local lineEntry_pawn		= _G["AuctionatorEntry"..line.."_PawnScore"];
 
 			lineEntry_itemtext:SetText	("");
 			lineEntry_text:SetText	("");
 			lineEntry_stack:SetText	("");
+			if (lineEntry_pawn) then lineEntry_pawn:SetText (""); end
 
 			lineEntry_text:GetParent():SetPoint ("LEFT", 157, 0);
 			
@@ -2997,6 +3042,28 @@ function Atr_ShowSearchSummary()
 			
 			lineEntry_text:SetText (icon.."  "..scn.itemName);
 			lineEntry_stack:SetText (scn:GetNumAvailable().." "..ZT("available"));
+
+			if (lineEntry_pawn and Atr_Pawn_IsAvailable and Atr_Pawn_IsAvailable()) then
+				local score = Atr_Pawn_GetScore (scn.itemLink);
+				if (score ~= nil) then
+					local text = Atr_Pawn_FormatScore (score);
+					if (Atr_Pawn_DiffMode()) then
+						if (score > 0) then
+							text = "+"..text;
+							lineEntry_pawn:SetTextColor (0.4, 1.0, 0.4);		-- upgrade
+						elseif (score < 0) then
+							lineEntry_pawn:SetTextColor (1.0, 0.4, 0.4);		-- worse than equipped
+						else
+							lineEntry_pawn:SetTextColor (0.7, 0.7, 0.7);		-- equal
+						end
+					else
+						lineEntry_pawn:SetTextColor (0.4, 0.8, 1.0);			-- absolute score
+					end
+					lineEntry_pawn:SetText (text);
+				else
+					lineEntry_pawn:SetText ("");
+				end
+			end
 			
 			if (data == nil or data.buyoutPrice == 0) then
 				lineEntry_item:Hide();
@@ -3029,6 +3096,7 @@ function Atr_ShowCurrentAuctions()
 	Atr_Col4_Heading:Hide();
 	Atr_Col1_Heading_Button:Hide();
 	Atr_Col3_Heading_Button:Hide();
+	if (Atr_Col5_Heading_Button) then Atr_Col5_Heading_Button:Hide(); end
 
 
 	local numrows = #gCurrentPane.activeScan.sortedData;
@@ -3077,10 +3145,12 @@ function Atr_ShowCurrentAuctions()
 			local lineEntry_itemtext	= _G["AuctionatorEntry"..line.."_PerItem_Text"];
 			local lineEntry_text		= _G["AuctionatorEntry"..line.."_EntryText"];
 			local lineEntry_stack		= _G["AuctionatorEntry"..line.."_StackPrice"];
+			local lineEntry_pawn		= _G["AuctionatorEntry"..line.."_PawnScore"];
 
 			lineEntry_itemtext:SetText	("");
 			lineEntry_text:SetText	("");
 			lineEntry_stack:SetText	("");
+			if (lineEntry_pawn) then lineEntry_pawn:SetText (""); end
 
 			lineEntry_text:GetParent():SetPoint ("LEFT", 172, 0);
 
@@ -3149,6 +3219,7 @@ function Atr_ShowHistory ()
 	Atr_Col1_Heading:Hide();
 	Atr_Col3_Heading:Hide();
 	Atr_Col4_Heading:Hide();
+	if (Atr_Col5_Heading_Button) then Atr_Col5_Heading_Button:Hide(); end
 
 	Atr_Col3_Heading:SetText (ZT("History"));
 
@@ -3184,10 +3255,12 @@ function Atr_ShowHistory ()
 			local lineEntry_itemtext	= _G["AuctionatorEntry"..line.."_PerItem_Text"];
 			local lineEntry_text		= _G["AuctionatorEntry"..line.."_EntryText"];
 			local lineEntry_stack		= _G["AuctionatorEntry"..line.."_StackPrice"];
+			local lineEntry_pawn		= _G["AuctionatorEntry"..line.."_PawnScore"];
 
 			lineEntry_item:Show();
 			lineEntry_itemtext:Hide();
 			lineEntry_stack:SetText	("");
+			if (lineEntry_pawn) then lineEntry_pawn:SetText (""); end
 
 			Atr_SetMFcolor (lineEntry_item_tag);
 

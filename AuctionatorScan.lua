@@ -20,6 +20,8 @@ local ATR_SORTBY_NAME_ASC = 0;
 local ATR_SORTBY_NAME_DES = 1;
 local ATR_SORTBY_PRICE_ASC = 2;
 local ATR_SORTBY_PRICE_DES = 3;
+local ATR_SORTBY_PAWN_ASC = 4;
+local ATR_SORTBY_PAWN_DES = 5;
 
 -----------------------------------------
 
@@ -515,11 +517,13 @@ function Atr_ParseCompoundSearch (searchString)
 	local queryString	= "";
 	local itemClass		= 0;
 	local itemSubclass	= 0;
+	local invType		= 0;
 	local minLevel		= nil;
 	local maxLevel		= nil;
 	local prevWasItemClass;
+	local prevWasItemSubclass;
 	local n;
-	
+
 	for n = 1,#tbl do
 		local s = tbl[n];
 
@@ -531,19 +535,29 @@ function Atr_ParseCompoundSearch (searchString)
 			elseif (maxLevel == nil) then
 				maxLevel = tonumber(s);
 			end
-			
+
 			handled = true;
 			prevWasItemClass = false;
+			prevWasItemSubclass = false;
 		end
-		
+
 		if (not handled and prevWasItemClass and itemSubclass == 0) then
 			itemSubclass = Atr_SubType2AuctionSubclass (itemClass, s);
 			if (itemSubclass > 0) then
 				handled = true;
 				prevWasItemClass = false;
+				prevWasItemSubclass = true;
 			end
 		end
-		
+
+		if (not handled and prevWasItemSubclass and invType == 0) then
+			invType = Atr_InvTypeName2Index (itemClass, itemSubclass, s);
+			if (invType > 0) then
+				handled = true;
+				prevWasItemSubclass = false;
+			end
+		end
+
 		if (not handled and itemClass == 0) then
 
 			itemClass = Atr_ItemType2AuctionClass (s);
@@ -553,14 +567,14 @@ function Atr_ParseCompoundSearch (searchString)
 				handled = true;
 			end
 		end
-		
+
 		if (not handled) then
 			queryString = s;
 			handled = true;
 		end
-	end	
+	end
 
-	return queryString, itemClass, itemSubclass, minLevel, maxLevel;
+	return queryString, itemClass, itemSubclass, minLevel, maxLevel, invType;
 end
 
 -----------------------------------------
@@ -577,9 +591,10 @@ function AtrSearch:Continue()
 		
 		local itemClass		= 0;
 		local itemSubclass	= 0;
+		local invTypeIndex	= nil;
 		local minLevel		= nil;
 		local maxLevel		= nil;
-		
+
 		if (self.exact) then
 			local scn = self:GetFirstScan();
 			itemClass		= scn.itemClass;
@@ -587,14 +602,19 @@ function AtrSearch:Continue()
 		end
 
 		if (Atr_IsCompoundSearch(queryString)) then
-		
-			queryString, itemClass, itemSubclass, minLevel, maxLevel = Atr_ParseCompoundSearch (queryString);
-		
+
+			local invType;
+			queryString, itemClass, itemSubclass, minLevel, maxLevel, invType = Atr_ParseCompoundSearch (queryString);
+
+			if (invType and invType > 0) then
+				invTypeIndex = invType;
+			end
+
 		end
 
 		queryString = zc.UTF8_Truncate (queryString,63);	-- attempting to reduce number of disconnects
 
-		QueryAuctionItems (queryString, minLevel, maxLevel, nil, itemClass, itemSubclass, self.current_page, nil, nil);
+		QueryAuctionItems (queryString, minLevel, maxLevel, invTypeIndex, itemClass, itemSubclass, self.current_page, nil, nil);
 
 		self.query_sent_when	= gAtr_ptime;
 		self.processing_state	= KM_POSTQUERY;
@@ -613,6 +633,20 @@ local function Atr_SortScans (x, y)
 
 	if (gSortScansBy == ATR_SORTBY_NAME_ASC) then		return string.lower (x.itemName) < string.lower (y.itemName);	end
 	if (gSortScansBy == ATR_SORTBY_NAME_DES) then		return string.lower (x.itemName) > string.lower (y.itemName);	end
+
+	if (gSortScansBy == ATR_SORTBY_PAWN_ASC or gSortScansBy == ATR_SORTBY_PAWN_DES) then
+
+		local xs = Atr_Pawn_GetScore and Atr_Pawn_GetScore (x.itemLink);
+		local ys = Atr_Pawn_GetScore and Atr_Pawn_GetScore (y.itemLink);
+
+		-- items without a score (not gear, or not cached yet) sort last
+		if (xs == nil and ys == nil) then	return string.lower (x.itemName) < string.lower (y.itemName);	end
+		if (xs == nil) then					return false;	end
+		if (ys == nil) then					return true;	end
+
+		if (gSortScansBy == ATR_SORTBY_PAWN_ASC) then	return xs < ys;		end
+		return xs > ys;
+	end
 
 	local xprice = 0;
 	local yprice = 0;
@@ -664,10 +698,15 @@ function AtrSearch:Finish()
 	end
 	
 	Atr_ClearBrowseListings();
-	
+
+	-- prewarm the Pawn scores for the whole list (async if needed)
+	if (Atr_Pawn_WarmScans) then
+		Atr_Pawn_WarmScans (self.sortedScans);
+	end
+
 	gSortScansBy = self.sortHow;
 	table.sort (self.sortedScans, Atr_SortScans);
-	
+
 end
 
 -----------------------------------------
@@ -701,11 +740,44 @@ end
 
 -----------------------------------------
 
+function AtrSearch:ClickPawnCol()
+
+	if (self.sortHow == ATR_SORTBY_PAWN_DES) then
+		self.sortHow = ATR_SORTBY_PAWN_ASC;
+	else
+		self.sortHow = ATR_SORTBY_PAWN_DES;		-- first click: high to low (best on top)
+	end
+
+	if (Atr_Pawn_WarmScans) then
+		Atr_Pawn_WarmScans (self.sortedScans);
+	end
+
+	gSortScansBy = self.sortHow;
+	table.sort (self.sortedScans, Atr_SortScans);
+end
+
+-----------------------------------------
+-- Re-sort with the current criterion; used by the Pawn integration to reorder
+-- the list when previously pending scores arrive.
+
+function AtrSearch:ReSortScans()
+
+	if (self.sortedScans == nil) then
+		return;
+	end
+
+	gSortScansBy = self.sortHow;
+	table.sort (self.sortedScans, Atr_SortScans);
+end
+
+-----------------------------------------
+
 function AtrSearch:UpdateArrows()
 
 	Atr_Col1_Heading_ButtonArrow:Hide();
 	Atr_Col3_Heading_ButtonArrow:Hide();
-	
+	if (Atr_Col5_Heading_ButtonArrow) then Atr_Col5_Heading_ButtonArrow:Hide(); end
+
 	if (self.sortHow == ATR_SORTBY_PRICE_ASC) then
 		Atr_Col1_Heading_ButtonArrow:Show();
 		Atr_Col1_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 0, 1.0);
@@ -718,6 +790,12 @@ function AtrSearch:UpdateArrows()
 	elseif (self.sortHow == ATR_SORTBY_NAME_DES) then
 		Atr_Col3_Heading_ButtonArrow:Show();
 		Atr_Col3_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 1.0, 0);
+	elseif (self.sortHow == ATR_SORTBY_PAWN_ASC and Atr_Col5_Heading_ButtonArrow) then
+		Atr_Col5_Heading_ButtonArrow:Show();
+		Atr_Col5_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 0, 1.0);
+	elseif (self.sortHow == ATR_SORTBY_PAWN_DES and Atr_Col5_Heading_ButtonArrow) then
+		Atr_Col5_Heading_ButtonArrow:Show();
+		Atr_Col5_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 1.0, 0);
 	end
 end
 

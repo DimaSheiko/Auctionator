@@ -1,0 +1,16 @@
+# Windows / WSL metadata
+*:Zone.Identifier
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editors
+*.swp
+*~
+.vscode/
+.idea/
+
+# WoW SavedVariables (belong in WTF/, not in the addon folder)
+SavedVariables/
+*.lua.bak

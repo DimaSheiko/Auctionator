@@ -16,6 +16,7 @@ local gBuyState = ATR_BUY_NULL;
 
 local gAtr_Buy_BuyoutPrice;
 local gAtr_Buy_ItemName;
+local gAtr_Buy_QueryName;
 local gAtr_Buy_StackSize;
 local gAtr_Buy_NumBought;
 local gAtr_Buy_NumUserWants;
@@ -26,6 +27,34 @@ local gAtr_Buy_Query;
 local gAtr_Buy_Pass;
 local gAtr_NextMatchIndex;
 local gAtr_Buy_MatchList = {};
+
+-----------------------------------------
+-- Random-suffix items (e.g. "Wolf Rider's Boots of Spirit") can't be found by
+-- their full name: the server name filter only indexes the base name. When the
+-- itemLink has a non-zero suffixID, query by the base name; matching still
+-- requires the full name, so only the correct variant is bought.
+-----------------------------------------
+
+local function Atr_Buy_ComputeQueryName (itemName, itemLink, searchText)
+
+	if (itemLink) then
+		local itemID, suffixID = string.match (itemLink, "item:(%d+):%d+:%d+:%d+:%d+:%d+:(%-?%d+)");
+		if (itemID and suffixID and suffixID ~= "0") then
+			local baseName = GetItemInfo (tonumber(itemID));
+			if (baseName and baseName ~= "") then
+				return baseName;
+			end
+		end
+	end
+
+	if (searchText and searchText ~= "" and itemName) then
+		if (string.find (string.lower(itemName), string.lower(searchText), 1, true)) then
+			return searchText;
+		end
+	end
+
+	return itemName;
+end
 
 -----------------------------------------
 
@@ -94,6 +123,7 @@ function Atr_Buy1_Onclick ()
 
 	gAtr_Buy_BuyoutPrice	= data.buyoutPrice;
 	gAtr_Buy_ItemName		= scan.itemName;
+	gAtr_Buy_QueryName		= Atr_Buy_ComputeQueryName (scan.itemName, scan.itemLink, scan.searchText);
 	gAtr_Buy_StackSize		= data.stackSize;
 	gAtr_Buy_MaxCanBuy		= data.count;
 	gAtr_Buy_Pass			= 1;		-- - first pass
@@ -155,7 +185,7 @@ function Atr_Buy_SendQuery ()
 
 		Atr_Buy_ClearMatchList();
 		
-		local queryString = zc.UTF8_Truncate (gAtr_Buy_ItemName,63);	-- attempting to reduce number of disconnects
+		local queryString = zc.UTF8_Truncate (gAtr_Buy_QueryName or gAtr_Buy_ItemName,63);	-- attempting to reduce number of disconnects
 
 		QueryAuctionItems (queryString, "", "", nil, 0, 0, gAtr_Buy_CurPage, nil, nil);
 	end
@@ -265,7 +295,7 @@ function Atr_Buy_BuildMatchList ()
 	Atr_Buy_ClearMatchList();
 
 	for i = 1,numInList do
-	
+
 		if (Atr_DoesAuctionMatch ("list", i, gAtr_Buy_ItemName, gAtr_Buy_BuyoutPrice, gAtr_Buy_StackSize)) then
 			gAtr_Buy_MatchList[x] = i;
 			x = x + 1;
@@ -429,11 +459,11 @@ end
 -----------------------------------------
 
 function Atr_Buy_Cancel (msg)
-	
+
 	gBuyState = ATR_BUY_NULL;
 
 	Atr_Buy_Confirm_Frame:Hide();
-	
+
 	Atr_Error_Display(msg);
 end
 

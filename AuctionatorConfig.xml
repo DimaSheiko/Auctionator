@@ -605,7 +605,45 @@
 
 
 
-  <!-- The About screen --> 
+  <!-- The Pawn Options screen -->
+
+	<Frame name="Atr_PawnOptionsFrame" inherits="Atr_OptionsPanelTemplate" parent="UIParent" enableMouse="true" hidden="true">
+
+		<Scripts>
+			<OnLoad>
+				Atr_LoadOptionsSubPanel (self, ZT("Pawn"));
+			</OnLoad>
+		</Scripts>
+
+		<Layers>
+			<Layer level="ARTWORK">
+				<FontString name="Atr_PawnScaleDD_Label" inherits="GameFontNormal" text="Scale used for the Pawn column:">
+					<Anchors><Anchor point="TOPLEFT"><Offset><AbsDimension x="20" y="-130"/></Offset></Anchor></Anchors>
+				</FontString>
+			</Layer>
+		</Layers>
+
+		<Frames>
+			<Frame name="AuctionatorOption_Pawn_ShowDiff" inherits="Atr_SingleOptionTemplate">
+				<Anchors><Anchor point="TOP"><Offset><AbsDimension y="-80"/></Offset></Anchor></Anchors>
+				<Scripts>
+					<OnLoad>	AuctionatorOption_Pawn_ShowDiff_CB_Text:SetText (ZT("Show the difference vs your equipped item (instead of the total value)"));	</OnLoad>
+				</Scripts>
+			</Frame>
+
+			<Frame name="Atr_PawnScaleDD" inherits="UIDropDownMenuTemplate">
+				<Anchors><Anchor point="TOPLEFT"><Offset><AbsDimension x="8" y="-150"/></Offset></Anchor></Anchors>
+				<Scripts>
+					<OnLoad> Atr_PawnScaleDD_OnLoad(self); </OnLoad>
+				</Scripts>
+			</Frame>
+		</Frames>
+
+	</Frame>
+
+
+
+  <!-- The About screen -->
 
 
 	<Frame name="AuctionatorDescriptionFrame" inherits="Atr_OptionsPanelTemplate" parent="UIParent" enableMouse="true" hidden="true">

@@ -48,6 +48,7 @@ function Atr_InitOptionsPanels()
 	Atr_SetupStackingFrame();
 	Atr_SetupOptionsFrame();
 	Atr_SetupScanningConfigFrame();
+	Atr_SetupPawnOptionsFrame();
 
 end
 
@@ -131,6 +132,92 @@ function Atr_SetupBasicOptionsFrame()
 	AuctionatorOption_Def_Duration_CB:SetChecked (AUCTIONATOR_DEF_DURATION == "S" or AUCTIONATOR_DEF_DURATION == "M" or AUCTIONATOR_DEF_DURATION == "L");
 
 	Atr_SetDurationOptionRB (AUCTIONATOR_DEF_DURATION);
+
+end
+
+-----------------------------------------
+
+function Atr_SetupPawnOptionsFrame()
+
+	local available = (Atr_Pawn_IsAvailable and Atr_Pawn_IsAvailable());
+
+	AuctionatorOption_Pawn_ShowDiff_CB:SetChecked (AUCTIONATOR_SAVEDVARS.PawnShowDiff and true or false);
+
+	-- scale selector
+	UIDropDownMenu_Initialize (Atr_PawnScaleDD, Atr_PawnScaleDD_Initialize);
+
+	local override = Atr_Pawn_GetScaleOverride and Atr_Pawn_GetScaleOverride();
+	if (override) then
+		UIDropDownMenu_SetSelectedValue (Atr_PawnScaleDD, override);
+		UIDropDownMenu_SetText (Atr_PawnScaleDD, (Atr_Pawn_GetScaleDisplayName and Atr_Pawn_GetScaleDisplayName(override)) or override);
+	else
+		UIDropDownMenu_SetSelectedValue (Atr_PawnScaleDD, "__AUTO__");
+		UIDropDownMenu_SetText (Atr_PawnScaleDD, ZT("Automatic"));
+	end
+
+	if (available) then
+		AuctionatorOption_Pawn_ShowDiff_CB:Enable();
+		local scale = Atr_Pawn_GetActiveScaleName and Atr_Pawn_GetActiveScaleName();
+		Atr_PawnOptionsFrame_BTitle:SetText (ZT("Active scale")..":  "..(scale or "?"));
+	else
+		AuctionatorOption_Pawn_ShowDiff_CB:Disable();
+		Atr_PawnOptionsFrame_BTitle:SetText (ZT("Pawn is not loaded."));
+	end
+
+end
+
+-----------------------------------------
+
+function Atr_PawnOptionsFrame_Save()
+
+	if (Atr_Pawn_SetDiffMode) then
+		Atr_Pawn_SetDiffMode (AuctionatorOption_Pawn_ShowDiff_CB:GetChecked() and true or false);
+	end
+
+	if (Atr_Pawn_SetScaleOverride) then
+		local v = UIDropDownMenu_GetSelectedValue (Atr_PawnScaleDD);
+		if (v == nil or v == "__AUTO__") then
+			Atr_Pawn_SetScaleOverride (nil);
+		else
+			Atr_Pawn_SetScaleOverride (v);
+		end
+	end
+
+end
+
+-----------------------------------------
+
+function Atr_PawnScaleDD_OnLoad (self)
+
+	UIDropDownMenu_Initialize (self, Atr_PawnScaleDD_Initialize);
+	UIDropDownMenu_SetWidth (self, 160);
+
+end
+
+-----------------------------------------
+
+function Atr_PawnScaleDD_Initialize (self)
+
+	local info = UIDropDownMenu_CreateInfo();
+
+	Atr_AddMenuPick (self, info, ZT("Automatic"), "__AUTO__", Atr_PawnScaleDD_OnClick);
+
+	if (Atr_Pawn_GetSelectableScales) then
+		local scales = Atr_Pawn_GetSelectableScales();
+		local i;
+		for i = 1, #scales do
+			Atr_AddMenuPick (self, info, scales[i].display, scales[i].name, Atr_PawnScaleDD_OnClick);
+		end
+	end
+
+end
+
+-----------------------------------------
+
+function Atr_PawnScaleDD_OnClick (self)
+
+	UIDropDownMenu_SetSelectedValue (self.owner, self.value);
+	UIDropDownMenu_SetText (self.owner, self.value == "__AUTO__" and ZT("Automatic") or ((Atr_Pawn_GetScaleDisplayName and Atr_Pawn_GetScaleDisplayName(self.value)) or self.value));
 
 end
 

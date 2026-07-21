@@ -231,6 +231,7 @@ end
 
 local gItemClasses;
 local gItemSubClasses;
+local gItemInvTypes;
 
 -----------------------------------------
 
@@ -287,6 +288,54 @@ function Atr_SubType2AuctionSubclass(auctionClass, itemSubtype)
 	local itemSubClass;
 		for x, itemSubClass in pairs(subclasses) do
 			if (zc.StringSame (itemSubClass, itemSubtype)) then
+				return x;
+			end
+		end
+	end
+
+	return 0;
+end
+
+
+-----------------------------------------
+
+function Atr_GetAuctionInvTypes (auctionClass, auctionSubclass)
+
+	if (gItemInvTypes == nil) then
+		gItemInvTypes = {};
+	end
+
+	local key = auctionClass.."_"..auctionSubclass;
+
+	if (gItemInvTypes[key] == nil) then
+
+		-- GetAuctionInvTypes returns a FLAT list of pairs: (token, display, ...).
+		-- QueryAuctionItems wants the PAIR NUMBER (1-based), not the list position,
+		-- so reindex to { [invTypeIndex] = token }.
+		local raw = { GetAuctionInvTypes(auctionClass, auctionSubclass) };
+		local list = {};
+		local i;
+		for i = 1, #raw, 2 do
+			list[(i+1)/2] = raw[i];		-- raw[i] = "INVTYPE_xxx"; display name = _G[token]
+		end
+
+		gItemInvTypes[key] = list;
+	end
+
+	return gItemInvTypes[key];
+end
+
+
+-----------------------------------------
+
+function Atr_InvTypeName2Index (auctionClass, auctionSubclass, invTypeName)
+
+	local invTypes = Atr_GetAuctionInvTypes (auctionClass, auctionSubclass);
+
+	if #invTypes > 0 then
+	local key;
+		for x, key in ipairs(invTypes) do
+			if (_G[key] and zc.StringSame (_G[key], invTypeName)) then
 				return x;
 			end
 		end

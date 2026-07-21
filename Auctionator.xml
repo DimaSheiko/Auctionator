@@ -234,7 +234,17 @@
 					</Layer>
 				</Layers>
 			</Frame>
-			
+
+			<Frame>
+				<Size><AbsDimension x="42" y="16" /></Size>
+				<Anchors><Anchor point="LEFT"><Offset><AbsDimension x="398" y="0"/></Offset></Anchor></Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_PawnScore" inherits="GameFontHighlightSmall" justifyH="CENTER"/>
+					</Layer>
+				</Layers>
+			</Frame>
+
 		</Frames>
 
 		<PushedTexture file="Interface\HelpFrame\HelpFrameButton-Highlight">
@@ -903,6 +913,12 @@
 						<Scripts><OnClick>Atr_Onclick_Col3()</OnClick></Scripts>
 					</Button>
 
+					<Button name="Atr_Col5_Heading_Button" text="Pawn" inherits="Atr_Col_Heading_Template"  hidden="true">
+						<Size><AbsDimension x="52" y="20"/></Size>
+						<Anchors><Anchor point="TOPLEFT"><Offset><AbsDimension x="402" y="-21"/></Offset></Anchor></Anchors>
+						<Scripts><OnClick>Atr_Onclick_Col5()</OnClick></Scripts>
+					</Button>
+
 				</Frames>
 			</Frame>
 
@@ -1309,7 +1325,7 @@
    <!-- Buy Confirmation screen --> 
 
 	<Frame name="Atr_Adv_Search_Dialog" inherits="AuctionatorDialog" toplevel="true" parent="UIParent" frameStrata="FULLSCREEN_DIALOG" enableMouse="true" hidden="true">
-		<Size><AbsDimension x="480" y="320" /></Size>		
+		<Size><AbsDimension x="480" y="390" /></Size>
 		<Anchors><Anchor point="TOPLEFT"><Offset><AbsDimension x="270" y="-160"/></Offset></Anchor></Anchors>
 
 		<Layers>
@@ -1335,9 +1351,13 @@
 				<FontString name="Atr_AS_SubCat_Label" inherits="GameFontNormalSmall" text="Subcategory">
 					<Anchors><Anchor point="TOPLEFT"><Offset><AbsDimension x="240" y="-120"/></Offset></Anchor></Anchors>
 				</FontString>
-				
-				<FontString name="Atr_AS_LevRange_Label" inherits="GameFontNormalSmall" text="Level Range">
+
+				<FontString name="Atr_AS_InvType_Label" inherits="GameFontNormalSmall" text="Slot">
 					<Anchors><Anchor point="TOPLEFT"><Offset><AbsDimension x="40" y="-190"/></Offset></Anchor></Anchors>
+				</FontString>
+
+				<FontString name="Atr_AS_LevRange_Label" inherits="GameFontNormalSmall" text="Level Range">
+					<Anchors><Anchor point="TOPLEFT"><Offset><AbsDimension x="40" y="-260"/></Offset></Anchor></Anchors>
 				</FontString>
 				
 				<FontString name="Atr_AS_LevRange_Label" inherits="GameFontHighlightLarge" text="-">
@@ -1365,6 +1385,13 @@
 				<Anchors><Anchor point="TOPLEFT" relativeTo="Atr_AS_SubCat_Label" relativePoint="BOTTOMLEFT"><Offset><AbsDimension x="-20" y="-4"/></Offset></Anchor></Anchors>
 				<Scripts>
 					<OnShow> Atr_ASDD_Subclass_OnLoad(self); </OnShow>
+				</Scripts>
+			</Frame>
+
+			<Frame name="Atr_ASDD_InvType" inherits="UIDropDownMenuTemplate">
+				<Anchors><Anchor point="TOPLEFT" relativeTo="Atr_AS_InvType_Label" relativePoint="BOTTOMLEFT"><Offset><AbsDimension x="-20" y="-4"/></Offset></Anchor></Anchors>
+				<Scripts>
+					<OnShow> Atr_ASDD_InvType_OnLoad(self); </OnShow>
 				</Scripts>
 			</Frame>
 

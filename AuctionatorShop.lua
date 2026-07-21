@@ -512,18 +512,20 @@ function Atr_Adv_Search_Onclick ()
 	Atr_Adv_Search_Dialog:Show();
 
 	if (Atr_IsCompoundSearch (searchText)) then
-		local queryString, itemClass, itemSubclass, minLevel, maxLevel = Atr_ParseCompoundSearch (searchText);
-		
+		local queryString, itemClass, itemSubclass, minLevel, maxLevel, invType = Atr_ParseCompoundSearch (searchText);
+
 		Atr_AS_Searchtext:SetText (queryString);
-		
+
 		Atr_ASDD_Class_Initialize(Atr_ASDD_Class);
 		UIDropDownMenu_SetSelectedValue (Atr_ASDD_Class, itemClass);
 		Atr_ASDD_UpdateSubclassMenu();
 		UIDropDownMenu_SetSelectedValue (Atr_ASDD_Subclass, itemSubclass);
+		Atr_ASDD_UpdateInvTypeMenu();
+		UIDropDownMenu_SetSelectedValue (Atr_ASDD_InvType, invType or 0);
 
 		if (minLevel == nil) then minLevel = ""; end
 		if (maxLevel == nil) then maxLevel = ""; end
-		
+
 		Atr_AS_Minlevel:SetText (minLevel);
 		Atr_AS_Maxlevel:SetText (maxLevel);
 
@@ -569,6 +571,7 @@ function Atr_ASDD_Class_OnClick (info)
 	UIDropDownMenu_SetSelectedValue(info.owner, info.value);
 
 	Atr_ASDD_UpdateSubclassMenu();
+	Atr_ASDD_UpdateInvTypeMenu();
 
 end
 
@@ -611,11 +614,71 @@ function Atr_ASDD_Subclass_Initialize (self)
 			local text;
 			for n, text in pairs(itemSubclasses) do
 
-				Atr_Dropdown_AddPick (Atr_ASDD_Subclass, text, n);
+				Atr_Dropdown_AddPick (Atr_ASDD_Subclass, text, n, Atr_ASDD_Subclass_OnClick);
 			end
 		end
 	end
-	
+
+end
+
+
+-----------------------------------------
+
+function Atr_ASDD_Subclass_OnClick (info)
+
+	UIDropDownMenu_SetSelectedValue(info.owner, info.value);
+
+	Atr_ASDD_UpdateInvTypeMenu();
+
+end
+
+
+-----------------------------------------
+
+function Atr_ASDD_UpdateInvTypeMenu ()
+
+	Atr_ASDD_InvType:Hide();
+	Atr_ASDD_InvType_Initialize (Atr_ASDD_InvType);
+	Atr_ASDD_InvType:Show();
+
+end
+
+
+-----------------------------------------
+
+function Atr_ASDD_InvType_OnLoad (self)
+
+	UIDropDownMenu_Initialize (self, Atr_ASDD_InvType_Initialize);
+	UIDropDownMenu_SetSelectedValue (Atr_ASDD_InvType, 0);
+	Atr_ASDD_InvType:Show();
+
+end
+
+
+-----------------------------------------
+
+function Atr_ASDD_InvType_Initialize (self)
+
+	local itemClass		= UIDropDownMenu_GetSelectedValue (Atr_ASDD_Class);
+	local itemSubclass	= UIDropDownMenu_GetSelectedValue (Atr_ASDD_Subclass);
+
+	Atr_Dropdown_AddPick (Atr_ASDD_InvType, "-------", 0);
+
+	if (itemClass and itemSubclass and itemSubclass > 0) then
+
+		local invTypes = Atr_GetAuctionInvTypes (itemClass, itemSubclass);
+		local n;
+
+		if (#invTypes > 0) then
+			local key;
+			for n, key in ipairs(invTypes) do
+				if (_G[key]) then
+					Atr_Dropdown_AddPick (Atr_ASDD_InvType, _G[key], n);
+				end
+			end
+		end
+	end
+
 end
 
 
@@ -628,6 +691,8 @@ function Atr_Adv_Search_Reset()
 	UIDropDownMenu_SetSelectedValue (Atr_ASDD_Class, 0);
 	Atr_ASDD_UpdateSubclassMenu();
 	UIDropDownMenu_SetSelectedValue (Atr_ASDD_Subclass, 0);
+	Atr_ASDD_UpdateInvTypeMenu();
+	UIDropDownMenu_SetSelectedValue (Atr_ASDD_InvType, 0);
 
 	Atr_AS_Minlevel:SetText ("");
 	Atr_AS_Maxlevel:SetText ("");
@@ -645,11 +710,20 @@ function Atr_Adv_Search_Do()
 
 	
 	local searchText = itemClassList[itemClass];
-	
+
 	if (itemSublass > 0) then
 		searchText = searchText.."/"..itemSubclassList[itemSublass];
 	end
-	
+
+	local invType = UIDropDownMenu_GetSelectedValue (Atr_ASDD_InvType);
+
+	if (invType and invType > 0) then
+		local invTypeList = Atr_GetAuctionInvTypes (itemClass, itemSublass);
+		if (invTypeList[invType]) then
+			searchText = searchText.."/".._G[invTypeList[invType]];
+		end
+	end
+
 	local minLevel	= Atr_AS_Minlevel:GetNumber ();
 	local maxLevel	= Atr_AS_Maxlevel:GetNumber ();
 	local text		= Atr_AS_Searchtext:GetText();
