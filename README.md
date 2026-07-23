@@ -39,7 +39,8 @@ equipped weapon, never a shield, even though they share the same slot.
 ### Scale selector
 The Pawn options tab includes a scale dropdown: **Automatic** (detect by spec)
 plus every scale of your class, so you can score items against another spec
-(e.g. compare gear for an off-spec). The choice persists across sessions.
+(e.g. compare gear for an off-spec). The choice is saved **per character**, and a
+scale that doesn't belong to the character's class is ignored.
 
 ## Fixes included
 
@@ -48,6 +49,11 @@ plus every scale of your class, so you can score items against another spec
   results list because the buy re-scan queried the full name, but the server
   only indexes the base name. It now queries by the base name (from the itemLink
   suffix) while still matching the exact variant.
+
+- **Lua error on shift-click** — a pre-existing bug in the original addon: its
+  replacement for `ChatEdit_InsertLink` called `strfind` on the argument without
+  checking it, so a `nil` link raised *"bad argument #1 to 'strfind'"* and aborted
+  the click. It now falls through to the original function.
 
 ## Slash commands
 

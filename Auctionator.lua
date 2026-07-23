@@ -1331,7 +1331,7 @@ end
 
 function auctionator_ChatEdit_InsertLink(text)
 
-	if (AuctionFrame:IsShown() and IsShiftKeyDown() and Atr_IsTabSelected(BUY_TAB)) then	
+	if (text and AuctionFrame:IsShown() and IsShiftKeyDown() and Atr_IsTabSelected(BUY_TAB)) then
 		local item;
 		if ( strfind(text, "item:", 1, true) ) then
 			item = GetItemInfo(text);
