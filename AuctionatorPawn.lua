@@ -42,6 +42,28 @@ local ATR_PAWN_CLASS_PREFIX =
 	DRUID		= "Druid",
 };
 
+-----------------------------------------
+-- A scale is only usable by a character of its own class.
+
+local function Atr_Pawn_IsScaleForPlayerClass (fullName)
+
+	if (not fullName or fullName == "") then
+		return false;
+	end
+
+	local _, classToken = UnitClass ("player");
+	local prefix = classToken and ATR_PAWN_CLASS_PREFIX[classToken];
+	if (not prefix) then
+		return false;
+	end
+
+	local internal = fullName:match ('^"[^"]*":(.+)$');
+
+	return (internal ~= nil and internal:sub (1, #prefix) == prefix);
+end
+
+-----------------------------------------
+
 local ATR_PAWN_PROVIDER = "Wowhead";
 
 local ATR_PAWN_MAX_TRIES = 25;			-- per-item retries before giving up
@@ -171,7 +193,7 @@ local function Atr_Pawn_DetectInternalScale ()
 end
 
 -----------------------------------------
--- Active scale full name, honoring a manual override in AUCTIONATOR_SAVEDVARS.
+-- Active scale full name, honoring the character's manual override.
 
 function Atr_Pawn_GetActiveScaleName ()
 
@@ -183,8 +205,8 @@ function Atr_Pawn_GetActiveScaleName ()
 		return nil;
 	end
 
-	local override = AUCTIONATOR_SAVEDVARS and AUCTIONATOR_SAVEDVARS.PawnScaleOverride;
-	if (override and override ~= "" and PawnCommon.Scales[override]) then
+	local override = Atr_Pawn_GetScaleOverride();
+	if (override and PawnCommon.Scales[override]) then
 		gActiveScaleName = override;
 		return gActiveScaleName;
 	end
@@ -518,12 +540,18 @@ end
 -----------------------------------------
 
 local gEventFrame = CreateFrame ("Frame");
+gEventFrame:RegisterEvent ("PLAYER_LOGIN");
 gEventFrame:RegisterEvent ("PLAYER_TALENT_UPDATE");
 gEventFrame:RegisterEvent ("CHARACTER_POINTS_CHANGED");
 gEventFrame:RegisterEvent ("ACTIVE_TALENT_GROUP_CHANGED");
 gEventFrame:RegisterEvent ("PLAYER_EQUIPMENT_CHANGED");
 gEventFrame:SetScript ("OnEvent", function (self, event, ...)
-	if (event == "PLAYER_EQUIPMENT_CHANGED") then
+	if (event == "PLAYER_LOGIN") then
+		-- drop the old account-wide override; the setting is per character now
+		if (AUCTIONATOR_SAVEDVARS) then
+			AUCTIONATOR_SAVEDVARS.PawnScaleOverride = nil;
+		end
+	elseif (event == "PLAYER_EQUIPMENT_CHANGED") then
 		Atr_Pawn_OnEquipmentChanged();
 	else
 		Atr_Pawn_OnSpecChanged();
@@ -542,19 +570,11 @@ function Atr_Pawn_GetSelectableScales ()
 		return result;
 	end
 
-	local _, classToken = UnitClass ("player");
-	local prefix = classToken and ATR_PAWN_CLASS_PREFIX[classToken];
-	if (not prefix) then
-		return result;
-	end
-
 	local _, s;
 	for _, s in ipairs (PawnGetAllScalesEx()) do
-		if (s.IsProvider and s.Name) then
+		if (s.IsProvider and s.Name and Atr_Pawn_IsScaleForPlayerClass (s.Name)) then
 			local internal = s.Name:match ('^"[^"]*":(.+)$');
-			if (internal and internal:sub (1, #prefix) == prefix) then
-				table.insert (result, { name = s.Name, display = s.LocalizedName or internal });
-			end
+			table.insert (result, { name = s.Name, display = s.LocalizedName or internal });
 		end
 	end
 
@@ -581,12 +601,17 @@ end
 
 -----------------------------------------
 
+-- The override is per character (AUCTIONATOR_PAWN_SCALE); a scale belonging to
+-- another class is ignored so the column falls back to automatic detection.
+
 function Atr_Pawn_GetScaleOverride ()
 
-	local ov = AUCTIONATOR_SAVEDVARS and AUCTIONATOR_SAVEDVARS.PawnScaleOverride;
-	if (ov and ov ~= "") then
+	local ov = AUCTIONATOR_PAWN_SCALE;
+
+	if (ov and ov ~= "" and Atr_Pawn_IsScaleForPlayerClass (ov)) then
 		return ov;
 	end
+
 	return nil;
 end
 
@@ -595,12 +620,11 @@ end
 
 function Atr_Pawn_SetScaleOverride (fullName)
 
-	if (AUCTIONATOR_SAVEDVARS) then
-		if (fullName and fullName ~= "" and PawnCommon and PawnCommon.Scales and PawnCommon.Scales[fullName]) then
-			AUCTIONATOR_SAVEDVARS.PawnScaleOverride = fullName;
-		else
-			AUCTIONATOR_SAVEDVARS.PawnScaleOverride = nil;
-		end
+	if (fullName and fullName ~= "" and PawnCommon and PawnCommon.Scales and PawnCommon.Scales[fullName]
+			and Atr_Pawn_IsScaleForPlayerClass (fullName)) then
+		AUCTIONATOR_PAWN_SCALE = fullName;
+	else
+		AUCTIONATOR_PAWN_SCALE = nil;
 	end
 
 	Atr_Pawn_OnSpecChanged();
@@ -622,8 +646,7 @@ function Atr_Pawn_HandleScaleCommand (arg)
 
 	if (arg == "auto" or arg == "") then
 		if (arg == "auto") then
-			if (AUCTIONATOR_SAVEDVARS) then AUCTIONATOR_SAVEDVARS.PawnScaleOverride = nil; end
-			Atr_Pawn_OnSpecChanged();
+			Atr_Pawn_SetScaleOverride (nil);
 		end
 		zc.msg_pink ("Active Pawn scale: "..(Atr_Pawn_GetActiveScaleName() or "(none)"));
 		return;
@@ -634,8 +657,12 @@ function Atr_Pawn_HandleScaleCommand (arg)
 		return;
 	end
 
-	if (AUCTIONATOR_SAVEDVARS) then AUCTIONATOR_SAVEDVARS.PawnScaleOverride = arg; end
-	Atr_Pawn_OnSpecChanged();
+	if (not Atr_Pawn_IsScaleForPlayerClass (arg)) then
+		zc.msg_pink ("Not a Pawn scale for this character's class: "..arg);
+		return;
+	end
+
+	Atr_Pawn_SetScaleOverride (arg);
 	zc.msg_pink ("Pawn scale set: "..arg);
 end
 
